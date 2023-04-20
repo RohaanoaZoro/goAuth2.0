@@ -2,10 +2,8 @@ package main
 
 import (
 	"encoding/json"
-	"io/ioutil"
 	"log"
 	"net/http"
-	"net/url"
 	"strings"
 
 	"github.com/bitly/go-simplejson"
@@ -66,6 +64,76 @@ func RegisterApplication(w http.ResponseWriter, r *http.Request) {
 	jsonData.Set("status_code", "200")
 	jsonData.Set("message", "Application Registration Successful")
 	jsonData.Set("data", data)
+	sendRes(w, jsonData)
+	return
+}
+
+func RegisterUser(w http.ResponseWriter, r *http.Request) {
+	// Create empty return JSON
+	jsonData := simplejson.New()
+
+	type ClientStruct struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+		ClientId string `json:"clientid"`
+	}
+
+	//Decode json into structure
+	var ClientDetails ClientStruct
+	err := json.NewDecoder(r.Body).Decode(&ClientDetails)
+	if err != nil {
+		jsonData.Set("status", "Failed")
+		jsonData.Set("message", "Cannot Decode Json")
+		w.WriteHeader(http.StatusBadRequest)
+		sendRes(w, jsonData)
+		return
+	}
+
+	//Email is missing
+	if ClientDetails.Email == "" {
+		jsonData.Set("status", "Failed")
+		jsonData.Set("message", "Email missing")
+		w.WriteHeader(http.StatusBadRequest)
+		sendRes(w, jsonData)
+		return
+	}
+
+	//Password is missing
+	if ClientDetails.Password == "" {
+		jsonData.Set("status", "Failed")
+		jsonData.Set("message", "Password missing")
+		w.WriteHeader(http.StatusBadRequest)
+		sendRes(w, jsonData)
+		return
+	}
+
+	//Check if Client ID is missing
+	if ClientDetails.ClientId == "" {
+		jsonData.Set("status", "Failed")
+		jsonData.Set("message", "Client Id missing")
+		w.WriteHeader(http.StatusBadRequest)
+		sendRes(w, jsonData)
+		return
+	}
+
+	err = mysql_registerUser(ClientDetails.Email, ClientDetails.Password, ClientDetails.ClientId)
+	if err != nil {
+		log.Println("Error into inserting User Table")
+		w.WriteHeader(http.StatusInternalServerError)
+		jsonData.Set("status", "Failed")
+		jsonData.Set("message", "Coulf not insert into database: "+err.Error())
+		sendRes(w, jsonData)
+		return
+	}
+
+	data := map[string]string{
+		"ClientId": ClientDetails.ClientId,
+	}
+	jsonData.Set("status", "Success")
+	jsonData.Set("status_code", "200")
+	jsonData.Set("message", "User Registration Successful")
+	jsonData.Set("data", data)
+
 	sendRes(w, jsonData)
 	return
 }
@@ -137,14 +205,14 @@ func RegisterClient(w http.ResponseWriter, r *http.Request) {
 	return
 }
 
-func Authentication(w http.ResponseWriter, r *http.Request) {
+func AuthenticationAPI(w http.ResponseWriter, r *http.Request) {
 
 	log.Println("/Authentication")
 
 	jsonData := simplejson.New()
 
 	type Credentials struct {
-		Username string `json:"username"`
+		Email    string `json:"email"`
 		Password string `json:"password"`
 	}
 
@@ -155,18 +223,17 @@ func Authentication(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	clientid, authStatus := LanquillAuthentication(credentials.Username, credentials.Password)
+	clientid, authStatus := Authentication(credentials.Email, credentials.Password)
 	if !authStatus {
 		w.WriteHeader(http.StatusUnauthorized)
 
 		jsonData.Set("status", "Failed")
-		jsonData.Set("status_code", "401")
 		jsonData.Set("message", "Authentication Failed")
 		sendRes(w, jsonData)
 		return
 	}
 
-	clientSecret, _, clientSecretExists := mysql_getClientSecret(clientid)
+	clientSecret, _, _, clientSecretExists := mysql_getClientSecret(clientid)
 	if !clientSecretExists {
 		w.WriteHeader(http.StatusInternalServerError)
 		jsonData.Set("status", "Failed")
@@ -192,45 +259,21 @@ func Authorization(w http.ResponseWriter, r *http.Request) {
 	jsonData := simplejson.New()
 
 	type ClientDetailsStruct struct {
-		ClientId     string `json:"client_id"`
-		ClientSecret string `json:"client_secret"`
+		ClientId     string `json:"clientid"`
+		ClientSecret string `json:"clientsecret"`
 		GrantType    string `json:"grant_type"`
 		Scope        string `json:"scope"`
 	}
+
+	queryParams := r.URL.Query()
+
 	var credentials ClientDetailsStruct
+	credentials.ClientId = queryParams.Get("clientid")
+	credentials.ClientSecret = queryParams.Get("clientsecret")
+	credentials.GrantType = queryParams.Get("grant_type")
+	credentials.Scope = queryParams.Get("scope")
 
-	//Read the Body of the request
-	bodyBytes, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		log.Println("Unable to read body of request.")
-		w.WriteHeader(http.StatusInternalServerError)
-		jsonData.Set("status", "Failed")
-		jsonData.Set("status_code", "400")
-		jsonData.Set("message", "Unable to read body of request.")
-		sendRes(w, jsonData)
-		return
-	}
-
-	u, err := url.Parse(r.URL.Host + "?" + string(bodyBytes))
-	if err != nil {
-		log.Println("Unable to parse body of request.")
-		w.WriteHeader(http.StatusInternalServerError)
-		jsonData.Set("status", "Failed")
-		jsonData.Set("status_code", "400")
-		jsonData.Set("message", "Unable to parse body of request.")
-		sendRes(w, jsonData)
-		return
-	}
-	queryParams := u.Query()
-
-	credentials.ClientId = queryParams["client_id"][0]
-	credentials.ClientSecret = queryParams["client_secret"][0]
-	credentials.GrantType = queryParams["grant_type"][0]
-	credentials.Scope = queryParams["scope"][0]
-
-	var ApplicationId string = r.URL.Query()["Application-Id"][0]
-
-	clientSecret, jwtkey, clientSecretExists := mysql_getClientSecret(credentials.ClientId)
+	clientSecret, jwtkey, ApplicationId, clientSecretExists := mysql_getClientSecret(credentials.ClientId)
 	if !clientSecretExists {
 		w.WriteHeader(http.StatusInternalServerError)
 		jsonData.Set("status", "Failed")
@@ -241,7 +284,6 @@ func Authorization(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if clientSecret != credentials.ClientSecret {
-
 		w.WriteHeader(http.StatusInternalServerError)
 		jsonData.Set("status", "Failed")
 		jsonData.Set("status_code", "400")

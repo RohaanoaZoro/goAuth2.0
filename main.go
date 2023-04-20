@@ -13,7 +13,7 @@ func NewRouter() *mux.Router {
 
 	// Create the route
 	// router.HandleFunc("/credslogin", CredsLogin)
-	router.HandleFunc("/authenticate", Authentication)
+	router.HandleFunc("/authenticate", AuthenticationAPI)
 	router.HandleFunc("/authorize", Authorization)
 	router.HandleFunc("/verifytoken", VerifyTokenAPI)
 	router.HandleFunc("/refreshtoken", RefreshTokenAPI)
@@ -21,6 +21,7 @@ func NewRouter() *mux.Router {
 	// router.HandleFunc("/test", Test)
 	router.HandleFunc("/registerApp", RegisterApplication)
 	router.HandleFunc("/registerClient", RegisterClient)
+	router.HandleFunc("/registerUser", RegisterUser)
 
 	return router
 }

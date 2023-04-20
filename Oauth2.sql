@@ -1,6 +1,6 @@
 -- MySQL dump 10.13  Distrib 8.0.29, for Linux (x86_64)
 --
--- Host: localhost    Database: Outh2
+-- Host: localhost    Database: Oauth2
 -- ------------------------------------------------------
 -- Server version	8.0.29
 

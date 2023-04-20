@@ -3,16 +3,15 @@ package main
 import (
 	"database/sql"
 	"log"
-	"os"
 
 	_ "github.com/go-sql-driver/mysql"
 )
 
-var MYSQLHOST = os.Getenv("MYSQL_HOST")
-var MYSQLPORT = os.Getenv("MYSQL_PORT")
-var MYSQLUSER = os.Getenv("MYSQL_USER")
-var MYSQLPASS = os.Getenv("MYSQL_PASS")
-var MYSQLDB = os.Getenv("MYSQL_AUTHDB")
+var MYSQLHOST = "127.0.0.1"
+var MYSQLPORT = "3306"
+var MYSQLUSER = "root"
+var MYSQLPASS = "Zxcvbnm@2"
+var MYSQLDB = "Oauth2"
 
 func MySQLConnect() *sql.DB {
 

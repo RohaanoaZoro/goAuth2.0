@@ -1,25 +1,27 @@
 package main
 
-import "log"
+import (
+	"log"
+)
 
 type UserDetails struct {
-	User_ID     int
-	User_Status string
-	User_Type   string
-	Password    string
+	Client_ID  string
+	User_Email string
+	Password   string
 }
 
-func GetUserDetails(Email string) UserDetails {
+func GetUserDetails(Email string) (UserDetails, error) {
 
 	msDB := MySQLConnect()
 	defer msDB.Close()
 
 	var userDetails UserDetails
-	var Query string = "SELECT User_ID, User_Status, User_Type, Password FROM sententia.user WHERE User_Email='" + Email + "'"
-	err := msDB.QueryRow(Query).Scan(&userDetails.User_ID, &userDetails.User_Status, &userDetails.User_Type, &userDetails.Password)
+	var Query string = "SELECT `ClientId`, `email`, `password` FROM `Oauth2`.`Users` WHERE email='" + Email + "'"
+	err := msDB.QueryRow(Query).Scan(&userDetails.Client_ID, &userDetails.User_Email, &userDetails.Password)
 	if err != nil {
 		log.Println("Error in SQL Login : ", err)
+		return userDetails, err
 	}
 
-	return userDetails
+	return userDetails, nil
 }
